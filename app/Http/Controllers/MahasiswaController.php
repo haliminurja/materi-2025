@@ -5,9 +5,37 @@ namespace App\Http\Controllers;
 use App\Models\Mahasiswa;
 use Exception;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 
 class MahasiswaController extends Controller
 {
+
+    //login mahasiswa dengan nim & password
+    public function login(Request $request)
+    {
+        $request->validate([
+            'nim' => 'required',
+            'password' => 'required'
+        ]);
+
+        $mahasiswa = Mahasiswa::where('nim', $request->nim)->first();
+
+        if (!$mahasiswa || !Hash::check($request->password, $mahasiswa->password)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'nim dan password salah',
+            ], 400);
+        }
+
+        $token = $mahasiswa->createToken('auth_token')->plainTextToken;
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Berhasil login',
+            'data' => ['token' => 'Bearer '.$token]
+        ], 200);
+    }
+
     // Ambil semua data mahasiswa
     public function index()
     {
@@ -41,7 +69,7 @@ class MahasiswaController extends Controller
                 'nim' => $request->nim,
                 'nama' => $request->nama,
                 'jenis_kelamin' => $request->jenis_kelamin,
-                'password' => $request->password
+                'password' => Hash::make($request->password)
             ]);
 
             return response()->json([
@@ -102,7 +130,7 @@ class MahasiswaController extends Controller
             $mahasiswa->update([
                 'nama' => $request->nama,
                 'jenis_kelamin' => $request->jenis_kelamin,
-                'password' => $request->password
+                'password' => Hash::make($request->password)
             ]);
 
             return response()->json([
