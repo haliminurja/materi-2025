@@ -16,6 +16,8 @@ return new class extends Migration
             $table->string('nama');
             $table->enum('jenis_kelamin', ['L', 'P']);
             $table->string('password');
+            $table->string('email');
+            $table->string('otp', 6)->nullable();
             $table->timestamps();
         });
     }
