@@ -16,7 +16,7 @@ class Mahasiswa extends Authenticatable
     protected $primaryKey = 'nim'; // Set primary key sebagai NIM
     public $incrementing = false;  // Non-increment karena NIM adalah string
     protected $keyType = 'string'; // Tipe data primary key
-    protected $fillable = ['nim', 'nama', 'jenis_kelamin', 'password'];
+    protected $fillable = ['nim', 'nama', 'jenis_kelamin', 'password','email','otp'];
 
     protected $hidden = ['password']; // Sembunyikan password dalam response
     public $timestamps = true; // Mengaktifkan created_at & updated_at
