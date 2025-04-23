@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Models\LogActivity;
+use App\Models\LogDatabase;
+use App\Models\LogError;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -16,38 +18,39 @@ class LogService
         $this->request = $request;
     }
 
-    public function logActivity($nim, $list)
+    public function logActivity($list)
     {
-        $log = $this->getBasicLog($nim, $list);
-        DB::table('log_activity')->insert($log);
+        $log = $this->getBasicLog($list);
+        LogActivity::create($log);
     }
 
-    protected function getBasicLog($nim, $list)
+    protected function getBasicLog($list)
     {
-        $log = [];
-        $log['method'] = $this->request->getMethod();
-        $log['agent'] = $this->request->header('user-agent');
-        $log['ip'] = $this->request->ip();
-        $log['list'] = $list;
-        $log['nim'] = $nim;
-        return $log;
+        return [
+            'method' => $this->request->getMethod(),
+            'agent' => $this->request->header('user-agent'),
+            'ip'     => $this->request->ip(),
+            'list'   => $list,
+        ];
     }
 
-    public function logError($nim, $list, Throwable $error)
+    public function logError($list, Throwable $error)
     {
-        $log = $this->getBasicLog($nim, $list);
+        $log = $this->getBasicLog($list);
+        $log['path'] = $this->request->path();
         $log['error'] = $error->getMessage();
-        DB::table('log_error')->insert($log);
-        //simpan log dalam bentuk file .log
+
+        LogError::create($log);
         Log::channel('daily')->error($error);
     }
 
-    public function logDatabase($nim, $list, $table, $id_table, $data)
+    public function logDatabase($list, $table, $id_table, $data)
     {
-        $log = $this->getBasicLog($nim, $list);
+        $log = $this->getBasicLog($list);
         $log['table'] = $table;
         $log['id_table'] = $id_table;
-        $log['data'] = json_encode($data);
-        DB::table('log_database')->insert($log);
+        $log['data'] = $data;
+
+        LogDatabase::create($log);
     }
 }

@@ -17,7 +17,6 @@ return new class extends Migration
             $table->char('ip', 25);
             $table->dateTime('tanggal')->useCurrent();
             $table->text('list');
-            $table->char('nim', 15)->index();
         });
 
         Schema::create('log_database', function (Blueprint $table) {
@@ -29,7 +28,6 @@ return new class extends Migration
             $table->string('table', 80);
             $table->json('data');
             $table->integer('id_table');
-            $table->char('nim', 15)->index();
         });
 
         Schema::create('log_error', function (Blueprint $table) {
@@ -40,7 +38,6 @@ return new class extends Migration
             $table->text('path');
             $table->text('list');
             $table->text('error');
-            $table->char('nim', 15)->index();
         });
     }
 
