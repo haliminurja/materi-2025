@@ -3,8 +3,10 @@
 namespace App\Providers;
 
 use App\Services\LogService;
+use App\Services\RedisService;
 use App\Services\TransactionService;
 use Illuminate\Http\Request;
+use Illuminate\Redis\RedisManager;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -20,6 +22,11 @@ class AppServiceProvider extends ServiceProvider
 
         $this->app->singleton(TransactionService::class, static fn ($app): TransactionService => new TransactionService(
             logService: $app->make(LogService::class),
+        ));
+
+
+        $this->app->singleton(RedisService::class, static fn ($app): RedisService => new RedisService(
+            redisManager: $app->make(RedisManager::class)
         ));
     }
 
