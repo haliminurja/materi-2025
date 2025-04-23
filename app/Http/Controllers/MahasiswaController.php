@@ -3,12 +3,19 @@
 namespace App\Http\Controllers;
 
 use App\Models\Mahasiswa;
+use App\Services\TransactionService;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 
 class MahasiswaController extends Controller
 {
+    private TransactionService $transactionService;
+
+    public function __construct(TransactionService $transactionService)
+    {
+        $this->transactionService = $transactionService;
+    }
 
     //login mahasiswa dengan nim & password
     public function login(Request $request)
@@ -17,33 +24,37 @@ class MahasiswaController extends Controller
             'nim' => 'required',
             'password' => 'required'
         ]);
+        return $this->transactionService->handleWithTransaction(function () use ($request) {
+            $mahasiswa = Mahasiswa::where('nim', $request->nim)->first();
 
-        $mahasiswa = Mahasiswa::where('nim', $request->nim)->first();
+            if (!$mahasiswa || !Hash::check($request->password, $mahasiswa->password)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'nim dan password salah',
+                ], 400);
+            }
 
-        if (!$mahasiswa || !Hash::check($request->password, $mahasiswa->password)) {
+            $token = $mahasiswa->createToken('auth_token')->plainTextToken;
+
             return response()->json([
-                'success' => false,
-                'message' => 'nim dan password salah',
-            ], 400);
-        }
-
-        $token = $mahasiswa->createToken('auth_token')->plainTextToken;
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Berhasil login',
-            'data' => ['token' => 'Bearer '.$token]
-        ], 200);
+                'success' => true,
+                'message' => 'Berhasil login',
+                'data' => ['token' => 'Bearer ' . $token]
+            ], 200);
+        }, 'Login');
     }
 
     // Ambil semua data mahasiswa
     public function index()
     {
-        return response()->json([
-            'success' => true,
-            'message' => 'List semua mahasiswa',
-            'data' => Mahasiswa::all()
-        ], 200);
+        return $this->transactionService->handleWithTransaction(function () {
+
+            return response()->json([
+                'success' => true,
+                'message' => 'List semua mahasiswa',
+                'data' => Mahasiswa::all()
+            ], 200);
+        }, 'List Mahasiswa');
     }
 
     // Simpan mahasiswa baru
@@ -64,56 +75,50 @@ class MahasiswaController extends Controller
             'password.required' => 'Password wajib diisi.',
         ]);
 
-        try {
-            $mahasiswa = Mahasiswa::create([
+        return $this->transactionService->handleWithTransaction(function () use ($request) {
+            $data = [
                 'nim' => $request->nim,
                 'nama' => $request->nama,
                 'jenis_kelamin' => $request->jenis_kelamin,
                 'password' => Hash::make($request->password)
-            ]);
+            ];
+
+            $mahasiswa = Mahasiswa::create($data);
+
+            $this->transactionService->handleWithLogDB('Create Mahasiswa', 'mahasiswa', $mahasiswa->nim, $data);
 
             return response()->json([
                 'success' => true,
                 'message' => 'Mahasiswa berhasil ditambahkan!',
                 'data' => $mahasiswa
             ], 201);
-        } catch (Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Terjadi kesalahan, mahasiswa gagal ditambahkan!',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+        }, 'Create Mahasiswa');
     }
 
     // Tampilkan mahasiswa berdasarkan NIM
     public function show($nim)
     {
-        $mahasiswa = Mahasiswa::where('nim', $nim)->first();
-        if (!$mahasiswa) {
+        return $this->transactionService->handleWithTransaction(function () use ($nim) {
+            $mahasiswa = Mahasiswa::where('nim', $nim)->first();
+
+            if (!$mahasiswa) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Mahasiswa dengan NIM tersebut tidak ditemukan.'
+                ], 404);
+            }
             return response()->json([
-                'success' => false,
-                'message' => 'Mahasiswa dengan NIM tersebut tidak ditemukan.'
-            ], 404);
-        }
-        return response()->json([
-            'success' => true,
-            'message' => 'Detail mahasiswa',
-            'data' => $mahasiswa
-        ], 200);
+                'success' => true,
+                'message' => 'Detail mahasiswa',
+                'data' => $mahasiswa
+            ], 200);
+
+        }, 'Detail Mahasiswa');
     }
 
     // Update mahasiswa
     public function update(Request $request, $nim)
     {
-        $mahasiswa = Mahasiswa::where('nim', $nim)->first();
-        if (!$mahasiswa) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Mahasiswa dengan NIM tersebut tidak ditemukan.'
-            ], 404);
-        }
-
         $request->validate([
             'nama' => 'required',
             'jenis_kelamin' => 'required|in:L,P',
@@ -125,51 +130,54 @@ class MahasiswaController extends Controller
             'password.required' => 'Password wajib diisi.',
         ]);
 
-        try {
+        return $this->transactionService->handleWithTransaction(function () use ($nim, $request) {
+            $mahasiswa = Mahasiswa::where('nim', $nim)->first();
+            if (!$mahasiswa) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Mahasiswa dengan NIM tersebut tidak ditemukan.'
+                ], 404);
+            }
 
-            $mahasiswa->update([
+            $data = [
                 'nama' => $request->nama,
                 'jenis_kelamin' => $request->jenis_kelamin,
                 'password' => Hash::make($request->password)
-            ]);
+            ];
+
+            $mahasiswa->update($data);
+
+            $this->transactionService->handleWithLogDB('Update Mahasiswa', 'mahasiswa', $nim, $data);
 
             return response()->json([
                 'success' => true,
                 'message' => 'Data mahasiswa berhasil diperbarui!'
             ], 200);
-        } catch (Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Terjadi kesalahan, data mahasiswa gagal diperbarui!',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+
+        }, 'Update Mahasiswa');
     }
 
     // Hapus mahasiswa
     public function destroy($nim)
     {
-        $mahasiswa = Mahasiswa::where('nim', $nim)->first();
-        if (!$mahasiswa) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Mahasiswa dengan NIM tersebut tidak ditemukan.'
-            ], 404);
-        }
+        return $this->transactionService->handleWithTransaction(function () use ($nim) {
+            $mahasiswa = Mahasiswa::where('nim', $nim)->first();
+            if (!$mahasiswa) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Mahasiswa dengan NIM tersebut tidak ditemukan.'
+                ], 404);
+            }
+            //log data mahaiswa sebelum di hapus
+            $this->transactionService->handleWithLogDB('Delete Mahasiswa', 'mahasiswa', $nim, $mahasiswa);
 
-        try {
             $mahasiswa->delete();
 
             return response()->json([
                 'success' => true,
                 'message' => 'Mahasiswa berhasil dihapus!'
             ], 200);
-        } catch (Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Terjadi kesalahan, mahasiswa gagal dihapus!',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+
+        },'Delete Mahasiswa');
     }
 }

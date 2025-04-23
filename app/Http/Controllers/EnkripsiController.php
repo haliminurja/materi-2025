@@ -2,40 +2,71 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\TransactionService;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
 
 class EnkripsiController extends Controller
 {
+    private TransactionService $transactionService;
+
+    public function __construct(TransactionService $transactionService)
+    {
+        $this->transactionService = $transactionService;
+    }
+
     public function encrypt(Request $request)
     {
-        $method = $request->input('method', 'default');
-        $data = $request->input('data', '');
-        $key = $request->input('key', '');
+        return $this->transactionService->handleWithTransaction(function () use ($request) {
+            $method = $request->input('method', 'default');
+            $data = $request->input('data', '');
+            $key = $request->input('key', '');
 
-        return match ($method) {
-            'base64' => $this->base64Encrypt($data, $key),
-            'sodium' => $this->sodiumEncrypt($data, $key),
-            'chacha20' => $this->chacha20Encrypt($data, $key),
-            'aes' => $this->aesEncrypt($data, $key),
-            default => Crypt::encryptString($data),
-        };
+            $result = match ($method) {
+                'base64' => $this->base64Encrypt($data, $key),
+                'sodium' => $this->sodiumEncrypt($data, $key),
+                'chacha20' => $this->chacha20Encrypt($data, $key),
+                'aes' => $this->aesEncrypt($data, $key),
+                default => Crypt::encryptString($data),
+            };
+
+             return response()->json([
+                'success' => true,
+                'message' => 'Berhasil enkripsi',
+                'data' => [
+                    'method' => $method,
+                    'enkripsi' => $result,
+                ]
+            ], 200);
+        }, 'encrypt');
     }
 
     public function decrypt(Request $request)
     {
-        $method = $request->input('method', 'default');
-        $data = $request->input('data', '');
-        $key = $request->input('key', '');
+        return $this->transactionService->handleWithTransaction(function () use ($request) {
+            $method = $request->input('method', 'default');
+            $data = $request->input('data', '');
+            $key = $request->input('key', '');
 
-        return match ($method) {
-            'base64' => $this->base64Decrypt($data, $key),
-            'sodium' => $this->sodiumDecrypt($data, $key),
-            'chacha20' => $this->chacha20Decrypt($data, $key),
-            'aes' => $this->aesDecrypt($data, $key),
-            default => Crypt::decryptString($data),
-        };
+            $result = match ($method) {
+                'base64' => $this->base64Decrypt($data, $key),
+                'sodium' => $this->sodiumDecrypt($data, $key),
+                'chacha20' => $this->chacha20Decrypt($data, $key),
+                'aes' => $this->aesDecrypt($data, $key),
+                default => Crypt::decryptString($data),
+            };
+
+             return response()->json([
+                'success' => true,
+                'message' => 'Berhasil dekripsi',
+                'data' => [
+                    'method' => $method,
+                    'dekripsi' => $result,
+                ]
+            ], 200);
+
+        }, 'dekripsi');
     }
 
     private function chacha20Encrypt(string $data, string $key)

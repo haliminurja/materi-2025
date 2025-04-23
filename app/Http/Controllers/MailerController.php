@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Mail\OTPMail;
 use App\Models\Mahasiswa;
+use App\Services\TransactionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Throwable;
@@ -11,39 +12,46 @@ use Throwable;
 class MailerController extends Controller
 {
 
+    private TransactionService $transactionService;
+
+    public function __construct(TransactionService $transactionService)
+    {
+        $this->transactionService = $transactionService;
+    }
+
     public function send(Request $request)
     {
         $request->validate([
             'email' => 'required|email',
         ]);
 
-        $mahasiswa = Mahasiswa::where('email', $request->email)->first();
+        return $this->transactionService->handleWithTransaction(function () use ($request) {
+            $mahasiswa = Mahasiswa::where('email', $request->email)->first();
 
-        if (!$mahasiswa) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Email tidak ditemukan',
-            ], 404);
-        }
+            if (!$mahasiswa) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Email tidak ditemukan',
+                ], 404);
+            }
 
-        try {
             $otp = $this->generateSecureOTP();
+
             Mail::to($request->email)->send(new OTPMail($otp));
 
-            $mahasiswa->update(['otp' => $otp]);
+            $data = [
+                'otp' => $otp
+            ];
+
+            $mahasiswa->update($data);
+
+            $this->transactionService->handleWithLogDB('Kirim OTP', 'mahasiswa', $mahasiswa->nim, $data);
 
             return response()->json([
                 'success' => true,
                 'message' => 'Kode OTP sudah dikirim',
             ]);
-
-        } catch (Throwable $th) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Terjadi kesalahan pada sistem',
-                'error' => $th->getMessage(),
-            ], 500);
-        }
+        }, 'Kirim OTP');
     }
 
     public function verifikasi(Request $request)
@@ -52,20 +60,22 @@ class MailerController extends Controller
             'otp' => 'required|string|size:6',
         ]);
 
-        $mahasiswa = Mahasiswa::where('otp', $request->otp)->first();
+        return $this->transactionService->handleWithTransaction(function () use ($request) {
+            $mahasiswa = Mahasiswa::where('otp', $request->otp)->first();
 
-        if (!$mahasiswa) {
+            if (!$mahasiswa) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'OTP tidak cocok atau sudah tidak berlaku',
+                ], 404);
+            }
+
             return response()->json([
-                'success' => false,
-                'message' => 'OTP tidak cocok atau sudah tidak berlaku',
-            ], 404);
-        }
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Verifikasi OTP berhasil',
-            'data' => $mahasiswa
-        ]);
+                'success' => true,
+                'message' => 'Verifikasi OTP berhasil',
+                'data' => $mahasiswa
+            ]);
+        }, 'Verifikasi OTP');
     }
 
 
